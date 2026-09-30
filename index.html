@@ -3,17 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Rugby Nations 26 - 7v7 FIX</title>
+<title>Rugby Nations 26 - V5</title>
 <style>
-body{margin:0;background:#0e2a14;overflow:hidden;font-family:Arial Black;color:white;touch-action:none}
-#top{height:40px;background:black;display:flex;justify-content:space-between;align-items:center;padding:0 12px;font-size:16px}
-#game{width:100vw;height:58vh;background:#1e8e3e;position:relative}
-canvas{width:100%;height:100%;display:block}
-#ctrl{height:34vh;background:#111;display:flex;align-items:center;justify-content:space-between;padding:10px;padding-bottom:25px}
-#joy{width:110px;height:110px;border-radius:50%;background:#ffffff22;border:2px solid #ffffff66;position:relative;flex-shrink:0}
-#stick{width:50px;height:50px;background:white;border-radius:50%;position:absolute;left:30px;top:30px}
-.btn{border:none;border-radius:14px;padding:14px 18px;font-weight:900}
-#pass{background:white;color:#002395}#kick{background:#ffcc00;color:black;margin-top:8px}#tackle{background:#e11;color:white;padding:20px 24px}
+body{margin:0;background:#0a1a0f;color:white;font-family:Arial Black;overflow:hidden;touch-action:none}
+#top{height:42px;background:black;display:flex;justify-content:space-between;align-items:center;padding:0 12px}
+#game{width:100vw;height:56vh;background:#1e8e3e}canvas{width:100%;height:100%;display:block}
+#ctrl{height:38vh;background:#0f0f0f;display:flex;justify-content:space-between;align-items:center;padding:12px 10px 30px 10px}
+#joy{width:108px;height:108px;border-radius:50%;background:#ffffff1e;border:2px solid #ffffff77;position:relative}
+#stick{width:52px;height:52px;background:white;border-radius:50%;position:absolute;left:28px;top:28px}
+.btn{border:none;border-radius:14px;padding:14px 18px;font-weight:900}.bW{background:white;color:#002395}.bY{background:#ffcc00;color:black;margin-top:6px}.bR{background:#e11;color:white;padding:20px 26px}
+#end{position:fixed;inset:0;background:#000e;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:20;text-align:center}
+#end h1{font-size:34px;margin:0}#end button{margin-top:20px;padding:16px 28px;border-radius:12px;border:none;font-weight:900;background:#2eab4a;color:white;font-size:18px}
 </style>
 </head>
 <body>
@@ -21,64 +21,79 @@ canvas{width:100%;height:100%;display:block}
 <div id="game"><canvas id="c" width="1000" height="460"></canvas></div>
 <div id="ctrl">
 <div id="joy"><div id="stick"></div></div>
-<div style="display:flex;flex-direction:column"><button class="btn" id="pass">PASSE A</button><button class="btn" id="kick">DÉGAGER</button></div>
-<button class="btn" id="tackle">TACLE</button>
+<div style="display:flex;flex-direction:column"><button class="btn bW" id="pass">PASSE A</button><button class="btn bY" id="kick">DEGAGER</button></div>
+<button class="btn bR" id="tackle">TACLE</button>
+</div>
+<div id="end">
+<h1 id="res">FIN DU MATCH</h1>
+<p id="best">Meilleur score: 0</p>
+<p id="final"></p>
+<button onclick="location.reload()">REJOUER</button>
 </div>
 <script>
 const C=document.getElementById('c'), X=C.getContext('2d');
-let sa=0,sb=0, time=120, jx=0,jy=0, carrier=null;
-let france=[], nz=[];
-for(let i=0;i<7;i++){france.push({x:180+ (i%2)*30, y:60+i*58, team:0}); nz.push({x:750- (i%2)*30, y:60+i*58, team:1, dir:-1});}
+let sa=0,sb=0,time=120,running=true,jx=0,jy=0,carrier=null,ball={x:500,y:230,vx:0,vy:0};
+let lanes=[60,120,180,240,300,360,420];
+let france=lanes.map((y,i)=>({x:180,y,baseX:180,baseY:y,team:0,i}));
+let nz=lanes.map((y,i)=>({x:780,y,baseX:780,baseY:y,team:1,i}));
 let me=france[3]; carrier=me;
-let ball={x:me.x+15,y:me.y};
+function bestScore(){return parseInt(localStorage.getItem('rn26_best')||'0');}
+function saveBest(){let cur=Math.max(sa,sb);if(cur>bestScore())localStorage.setItem('rn26_best',cur);}
+function kickOff(toFrance){
+ france.forEach((p,i)=>{p.x=p.baseX;p.y=p.baseY;}); nz.forEach((p,i)=>{p.x=p.baseX;p.y=p.baseY;});
+ me=france[3]; carrier= toFrance? me : nz[3]; ball.x=500; ball.y=230; ball.vx=0; ball.vy=0;
+}
 function draw(){
  X.fillStyle='#2eab4a';X.fillRect(0,0,1000,460);
- X.strokeStyle='white';X.lineWidth=3;X.strokeRect(15,15,970,430);
- X.beginPath();X.moveTo(500,15);X.lineTo(500,445);X.stroke();
- X.strokeRect(15,120,100,220);X.strokeRect(885,120,100,220);
- // joueurs FRA fixes en formation
+ X.strokeStyle='white';X.lineWidth=3;X.strokeRect(15,15,970,430);X.beginPath();X.moveTo(500,15);X.lineTo(500,445);X.stroke();
+ X.strokeRect(15,120,95,220);X.strokeRect(890,120,95,220);
  france.forEach(p=>{
-  if(p!==me && carrier && carrier.team===0){ // soutien si on attaque
-   p.x += (carrier.x-80 - p.x)*0.02; p.y += (carrier.y + (p.y-230)*0.1 - p.y)*0.02;
-  }
-  X.fillStyle='#002395';X.beginPath();X.arc(p.x,p.y,14,0,7);X.fill();
-  if(p===me){X.strokeStyle='white';X.lineWidth=2;X.stroke();}
-  if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
+  if(running && carrier && carrier.team===0 && p!==carrier){p.x+=(carrier.x-90 - p.x)*0.03; p.y+=(p.baseY + (carrier.y-p.baseY)*0.15 - p.y)*0.05;}
+  if(p!==me && p!==carrier){p.x+=(p.baseX - p.x)*0.04;}
+  X.fillStyle='#002395';X.beginPath();X.arc(p.x,p.y,13,0,7);X.fill();
+  if(p===me){X.strokeStyle='white';X.lineWidth=2;X.stroke();} if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
  });
  nz.forEach(p=>{
-  if(carrier && carrier.team===1){ // NZ attaque
-   if(p===carrier){p.x+=1.4; p.y+=(230-p.y)*0.01;} else {p.x+=(carrier.x-60 - p.x)*0.02; p.y+=(carrier.y + (Math.random()-0.5)*40 - p.y)*0.03;}
-  }else{ // NZ defend
-   p.x+=(ball.x-70 - p.x)*0.015; p.y+=(ball.y - p.y)*0.02;
+  if(running){
+   if(carrier && carrier.team===1){
+    if(p===carrier){p.x-=1.2; if(Math.random()<0.015){let mates=nz.filter(q=>q!==p);let m=mates[Math.floor(Math.random()*mates.length)];carrier=m;}} else {p.x+=(carrier.x+70 - p.x)*0.03; p.y+=(p.baseY*0.3+carrier.y*0.7 - p.y)*0.05;}
+   }else{ // defense
+    p.x+=(ball.x+20 - p.x)*0.02; p.y+=(ball.y + (p.baseY-ball.y)*0.2 - p.y)*0.05;
+   }
   }
-  X.fillStyle='#111';X.beginPath();X.arc(p.x,p.y,14,0,7);X.fill();
-  if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
+  X.fillStyle='#111';X.beginPath();X.arc(p.x,p.y,13,0,7);X.fill(); if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
  });
- // balle
- if(carrier){ball.x=carrier.x+16;ball.y=carrier.y;}
- X.fillStyle='white';X.beginPath();X.ellipse(ball.x,ball.y,11,7,0.5,0,7);X.fill();
- // plaquage
- if(carrier){
-  let adv = carrier.team===0?nz:france;
-  for(let a of adv){if(Math.hypot(a.x-carrier.x,a.y-carrier.y)<28){carrier=null; ball.x+= (Math.random()-0.5)*60; ball.y+= (Math.random()-0.5)*60; break;}}
+ if(carrier){ball.x=carrier.x+14;ball.y=carrier.y;} else {ball.x+=ball.vx;ball.y+=ball.vy;ball.vx*=0.97;ball.vy*=0.97; ball.x=Math.max(20,Math.min(980,ball.x)); ball.y=Math.max(20,Math.min(440,ball.y)); if(Math.hypot(me.x-ball.x,me.y-ball.y)<26) carrier=me;}
+ // plaquage auto
+ if(carrier && running){
+  let defs=carrier.team===0?nz:france;
+  for(let d of defs){if(d!==carrier && Math.hypot(d.x-carrier.x,d.y-carrier.y)<26){let was=carrier;carrier=null;ball.vx=(was.x-d.x)*0.3;ball.vy=(was.y-d.y)*0.3+ (Math.random()-0.5)*2; setTimeout(()=>{if(!carrier){let near=[...france,...nz].reduce((a,b)=>Math.hypot(a.x-ball.x,a.y-ball.y)<Math.hypot(b.x-ball.x,b.y-ball.y)?a:b); carrier=near;}},300); break;}}
  }
- // essai
- if(ball.x<30){sb++;document.getElementById('sb').innerText=sb; ball.x=500;ball.y=230; carrier=nz[3]; me=france[3];}
- if(ball.x>970){sa++;document.getElementById('sa').innerText=sa; ball.x=500;ball.y=230; carrier=france[3];}
+ // ESSAI une seule fois
+ if(ball.x>880 && ball.y>120 && ball.y<340 && running){
+  if(carrier && carrier.team===0){sa+=5;document.getElementById('sa').innerText=sa;} else if(carrier && carrier.team===1){sb+=5;document.getElementById('sb').innerText=sb;}
+  else if(ball.x>880){ // ballon mort
+   if(ball.vx>0){sa+=5;document.getElementById('sa').innerText=sa;} else {sb+=5;document.getElementById('sb').innerText=sb;}
+  }
+  saveBest(); kickOff(false);
+ }
+ if(ball.x<120 && ball.y>120 && ball.y<340 && running){
+  if(carrier && carrier.team===1){sb+=5;document.getElementById('sb').innerText=sb;} else if(carrier && carrier.team===0){sa+=5;document.getElementById('sa').innerText=sa;}
+  saveBest(); kickOff(true);
+ }
+ X.fillStyle='white';X.beginPath();X.ellipse(ball.x,ball.y,11,7,0.6,0,7);X.fill();
 }
-function loop(){
- me.x+=jx*4; me.y+=jy*4; me.x=Math.max(25,Math.min(975,me.x)); me.y=Math.max(25,Math.min(435,me.y));
- if(!carrier && Math.hypot(me.x-ball.x,me.y-ball.y)<30) carrier=me;
- draw(); requestAnimationFrame(loop);
-}loop();
-setInterval(()=>{time--;let m=Math.floor(time/60)+':'+String(time%60).padStart(2,'0');document.getElementById('tm').innerText=m; if(time<=0)time=120;},1000);
+function loop(){if(running){me.x+=jx*4.2;me.y+=jy*4.2;me.x=Math.max(20,Math.min(980,me.x));me.y=Math.max(20,Math.min(440,me.y));} draw(); requestAnimationFrame(loop);}loop();
+// chrono
+let timer=setInterval(()=>{if(!running)return;time--;let m=Math.floor(time/60)+':'+String(time%60).padStart(2,'0');document.getElementById('tm').innerText=m; if(time<=0){running=false;clearInterval(timer);saveBest();document.getElementById('final').innerText=`Score final: FRA ${sa} - ${sb} NZL`;document.getElementById('best').innerText='Meilleur score: '+bestScore();document.getElementById('end').style.display='flex';}},1000);
+// joystick
 const joy=document.getElementById('joy'),stick=document.getElementById('stick');
-joy.addEventListener('touchstart',e=>{e.preventDefault();let r=joy.getBoundingClientRect();let x=e.touches[0].clientX-r.left-55,y=e.touches[0].clientY-r.top-55;let d=Math.hypot(x,y);if(d>40){x=x/d*40;y=y/d*40}stick.style.left=30+x+'px';stick.style.top=30+y+'px';jx=x/40;jy=y/40;},{passive:false});
-joy.addEventListener('touchmove',e=>{e.preventDefault();let r=joy.getBoundingClientRect();let x=e.touches[0].clientX-r.left-55,y=e.touches[0].clientY-r.top-55;let d=Math.hypot(x,y);if(d>40){x=x/d*40;y=y/d*40}stick.style.left=30+x+'px';stick.style.top=30+y+'px';jx=x/40;jy=y/40;},{passive:false});
-joy.addEventListener('touchend',()=>{stick.style.left='30px';stick.style.top='30px';jx=0;jy=0;});
-document.getElementById('pass').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){let mates=france.filter(p=>p!==carrier);let best=mates.reduce((a,b)=>Math.hypot(a.x-ball.x,a.y-ball.y)<Math.hypot(b.x-ball.x,b.y-ball.y)?a:b); carrier=best;}});
-document.getElementById('tackle').addEventListener('touchstart',e=>{e.preventDefault(); nz.forEach(p=>{if(Math.hypot(p.x-me.x,p.y-me.y)<90){p.x+=50; if(p===carrier)carrier=null;}});});
-document.getElementById('kick').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){carrier=null; ball.x+=120; ball.y+=(Math.random()-0.5)*80;}});
+function mv(e){e.preventDefault();let r=joy.getBoundingClientRect();let x=(e.touches?e.touches[0].clientX:e.clientX)-r.left-54;let y=(e.touches?e.touches[0].clientY:e.clientY)-r.top-54;let d=Math.hypot(x,y);if(d>38){x=x/d*38;y=y/d*38}stick.style.left=28+x+'px';stick.style.top=28+y+'px';jx=x/38;jy=y/38}
+joy.addEventListener('touchmove',mv,{passive:false});joy.addEventListener('touchstart',mv,{passive:false});joy.addEventListener('touchend',()=>{stick.style.left='28px';stick.style.top='28px';jx=0;jy=0;});
+document.getElementById('pass').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){let mates=france.filter(p=>p!==carrier);let b=mates.reduce((a,b)=> Math.abs(b.y-carrier.y)<Math.abs(a.y-carrier.y)?b:a);carrier=b;}});
+document.getElementById('tackle').addEventListener('touchstart',e=>{e.preventDefault(); [...nz,...france].forEach(p=>{if(p.team!==me.team && Math.hypot(p.x-me.x,p.y-me.y)<85){p.x+=(p.x-me.x)*0.4; if(p===carrier){carrier=null; ball.vx=(p.x-me.x)*0.2;}}});});
+document.getElementById('kick').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){carrier=null; ball.vx=10+Math.random()*4; ball.vy=(Math.random()-0.5)*6;}});
+kickOff(true);
 </script>
 </body>
 </html>
