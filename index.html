@@ -2,84 +2,83 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
-<title>Rugby Nations 26 - 7v7</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Rugby Nations 26 - 7v7 FIX</title>
 <style>
-*{box-sizing:border-box}html,body{margin:0;padding:0;background:#0c1f12;height:100dvh;overflow:hidden;font-family:system-ui;font-weight:800}
-#top{height:44px;background:#000;display:flex;justify-content:space-between;align-items:center;padding:0 12px;color:white;z-index:10}
-#fieldWrap{height:calc(100dvh - 44px - 130px);display:flex;align-items:center;justify-content:center;background:#1b8a3a}
-canvas{width:100%;height:100%;max-width:900px;display:block}
-#controls{height:130px;background:#0a0a0a;padding:10px 10px calc(10px + env(safe-area-inset-bottom));display:flex;justify-content:space-between;align-items:center;gap:8px}
-#joy{width:110px;height:110px;min-width:110px;border-radius:50%;background:#ffffff18;border:2px solid #ffffff55;position:relative;touch-action:none}
-#stick{width:52px;height:52px;border-radius:50%;background:white;position:absolute;left:29px;top:29px;box-shadow:0 2px 10px #000a}
-#mid{display:flex;flex-direction:column;gap:8px}
-.btn{border:none;border-radius:14px;padding:14px 18px;font-weight:900;font-size:14px;touch-action:none}
-.btn:active{transform:scale(0.95)}.b1{background:white;color:#002395}.b2{background:#ffcc00;color:black}.b3{background:#e11;color:white;padding:18px 22px}
-#msg{position:absolute;top:54px;left:50%;transform:translateX(-50%);background:#000e;color:white;padding:6px 14px;border-radius:20px;font-size:13px;pointer-events:none}
+body{margin:0;background:#0e2a14;overflow:hidden;font-family:Arial Black;color:white;touch-action:none}
+#top{height:40px;background:black;display:flex;justify-content:space-between;align-items:center;padding:0 12px;font-size:16px}
+#game{width:100vw;height:58vh;background:#1e8e3e;position:relative}
+canvas{width:100%;height:100%;display:block}
+#ctrl{height:34vh;background:#111;display:flex;align-items:center;justify-content:space-between;padding:10px;padding-bottom:25px}
+#joy{width:110px;height:110px;border-radius:50%;background:#ffffff22;border:2px solid #ffffff66;position:relative;flex-shrink:0}
+#stick{width:50px;height:50px;background:white;border-radius:50%;position:absolute;left:30px;top:30px}
+.btn{border:none;border-radius:14px;padding:14px 18px;font-weight:900}
+#pass{background:white;color:#002395}#kick{background:#ffcc00;color:black;margin-top:8px}#tackle{background:#e11;color:white;padding:20px 24px}
 </style>
 </head>
 <body>
-<div id="top"><span>🇫🇷 FRA <span id="sa">0</span></span><span id="timer">2:00</span><span><span id="sb">0</span> NZL 🇳🇿</span></div>
-<div id="fieldWrap"><canvas id="c" width="1000" height="520"></canvas></div>
-<div id="msg">JOYSTICK = COURIR • PASSE A = PASSE • TACLE = PLAQUER</div>
-<div id="controls">
+<div id="top"><span>🇫🇷 FRA <b id="sa">0</b></span><span id="tm">2:00</span><span><b id="sb">0</b> NZL 🇳🇿</span></div>
+<div id="game"><canvas id="c" width="1000" height="460"></canvas></div>
+<div id="ctrl">
 <div id="joy"><div id="stick"></div></div>
-<div id="mid"><button class="btn b1" id="pass">PASSE A</button><button class="btn b2" id="kick">DÉGAGER</button></div>
-<button class="btn b3" id="tackle">TACLE</button>
+<div style="display:flex;flex-direction:column"><button class="btn" id="pass">PASSE A</button><button class="btn" id="kick">DÉGAGER</button></div>
+<button class="btn" id="tackle">TACLE</button>
 </div>
 <script>
-const cv=document.getElementById('c'), ctx=cv.getContext('2d');
-let W=1000,H=520;
-let time=120, sa=0,sb=0;
-let ball={x:500,y:260,vx:0,vy:0}, carrier=null, lastCarrier=null;
-function makeTeam(isFrance, xBase){
- const col=isFrance?'#002395':'#111'; const players=[];
- for(let i=0;i<7;i++){
-  let y=70+i*(H-140)/6, x=xBase+(i%2===0?0:40);
-  if(!isFrance) x= W - x;
-  players.push({x,y,ox:x,oy:y,vx:0,vy:0,team:isFrance?0:1,col,role:i});
- }
- return players;
-}
-let france=makeTeam(true,120), nz=makeTeam(false,120);
-let all=[...france,...nz];
-let player=france[3]; // tu controles celui la au depart
-carrier=player; ball.x=player.x+15; ball.y=player.y;
-
-function resetPositions(attackDir=1){
- france.forEach((p,i)=>{p.x=200 + (i%3)*30; p.y=80+i*62; p.ox=p.x; p.oy=p.y});
- nz.forEach((p,i)=>{p.x=700 - (i%3)*30; p.y=80+i*62; p.ox=p.x; p.oy=p.y});
-}
-resetPositions();
-
-let jx=0,jy=0, tackleCD=0;
-function closestToBall(team){return team.reduce((a,b)=> Math.hypot(b.x-ball.x,b.y-ball.y) < Math.hypot(a.x-ball.x,a.y-ball.y)? b : a)}
-
-// IA simple mais qui joue comme au rugby
-function updateAI(dt){
- // si NZ a la balle
- if(carrier && carrier.team===1){
-  carrier.x+=1.8; // avance vers essai FRA
-  carrier.y+=(260-carrier.y)*0.01;
-  // passe si pression
-  let pressure = france.some(f=> Math.hypot(f.x-carrier.x,f.y-carrier.y)<70);
-  if(pressure && Math.random()<0.04){
-   let mates=nz.filter(p=>p!==carrier && p.x<carrier.x+80); if(mates.length){let m=mates[Math.floor(Math.random()*mates.length)]; ball.x=m.x; ball.y=m.y; carrier=m;}
+const C=document.getElementById('c'), X=C.getContext('2d');
+let sa=0,sb=0, time=120, jx=0,jy=0, carrier=null;
+let france=[], nz=[];
+for(let i=0;i<7;i++){france.push({x:180+ (i%2)*30, y:60+i*58, team:0}); nz.push({x:750- (i%2)*30, y:60+i*58, team:1, dir:-1});}
+let me=france[3]; carrier=me;
+let ball={x:me.x+15,y:me.y};
+function draw(){
+ X.fillStyle='#2eab4a';X.fillRect(0,0,1000,460);
+ X.strokeStyle='white';X.lineWidth=3;X.strokeRect(15,15,970,430);
+ X.beginPath();X.moveTo(500,15);X.lineTo(500,445);X.stroke();
+ X.strokeRect(15,120,100,220);X.strokeRect(885,120,100,220);
+ // joueurs FRA fixes en formation
+ france.forEach(p=>{
+  if(p!==me && carrier && carrier.team===0){ // soutien si on attaque
+   p.x += (carrier.x-80 - p.x)*0.02; p.y += (carrier.y + (p.y-230)*0.1 - p.y)*0.02;
   }
-  // soutien NZ se replace en ligne derriere porteur
-  nz.forEach((p,i)=>{if(p!==carrier){p.x+=(carrier.x-80 - p.x)*0.02; p.y+=(carrier.y + (i-3)*45 - p.y)*0.03}});
-  france.forEach(p=>{ // defense glisse
-   let tx=ball.x-60; p.x+=(tx - p.x)*0.02; p.y+=(ball.y + (p.role-3)*30 - p.y)*0.03;
-  });
- }else{
-  // FRANCE attaque (toi ou ton IA)
-  if(carrier && carrier!==player){ // coéquipier porte la balle
-   carrier.x+=1.6; // il avance
-   carrier.y+=(Math.random()-0.5)*1.2;
+  X.fillStyle='#002395';X.beginPath();X.arc(p.x,p.y,14,0,7);X.fill();
+  if(p===me){X.strokeStyle='white';X.lineWidth=2;X.stroke();}
+  if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
+ });
+ nz.forEach(p=>{
+  if(carrier && carrier.team===1){ // NZ attaque
+   if(p===carrier){p.x+=1.4; p.y+=(230-p.y)*0.01;} else {p.x+=(carrier.x-60 - p.x)*0.02; p.y+=(carrier.y + (Math.random()-0.5)*40 - p.y)*0.03;}
+  }else{ // NZ defend
+   p.x+=(ball.x-70 - p.x)*0.015; p.y+=(ball.y - p.y)*0.02;
   }
-  france.forEach((p,i)=>{if(p!==carrier && p!==player){p.x+=(carrier.x-60 - p.x)*0.015; p.y+=(carrier.y + (i-3)*40 - p.y)*0.03}});
-  nz.forEach(p=>{p.x+=(ball.x-70 - p.x)*0.02; p.y+=(ball.y - p.y)*0.03 + (Math.random()-0.5)*0.5});
- }
-
- // plaquage auto
+  X.fillStyle='#111';X.beginPath();X.arc(p.x,p.y,14,0,7);X.fill();
+  if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
+ });
+ // balle
+ if(carrier){ball.x=carrier.x+16;ball.y=carrier.y;}
+ X.fillStyle='white';X.beginPath();X.ellipse(ball.x,ball.y,11,7,0.5,0,7);X.fill();
+ // plaquage
  if(carrier){
+  let adv = carrier.team===0?nz:france;
+  for(let a of adv){if(Math.hypot(a.x-carrier.x,a.y-carrier.y)<28){carrier=null; ball.x+= (Math.random()-0.5)*60; ball.y+= (Math.random()-0.5)*60; break;}}
+ }
+ // essai
+ if(ball.x<30){sb++;document.getElementById('sb').innerText=sb; ball.x=500;ball.y=230; carrier=nz[3]; me=france[3];}
+ if(ball.x>970){sa++;document.getElementById('sa').innerText=sa; ball.x=500;ball.y=230; carrier=france[3];}
+}
+function loop(){
+ me.x+=jx*4; me.y+=jy*4; me.x=Math.max(25,Math.min(975,me.x)); me.y=Math.max(25,Math.min(435,me.y));
+ if(!carrier && Math.hypot(me.x-ball.x,me.y-ball.y)<30) carrier=me;
+ draw(); requestAnimationFrame(loop);
+}loop();
+setInterval(()=>{time--;let m=Math.floor(time/60)+':'+String(time%60).padStart(2,'0');document.getElementById('tm').innerText=m; if(time<=0)time=120;},1000);
+const joy=document.getElementById('joy'),stick=document.getElementById('stick');
+joy.addEventListener('touchstart',e=>{e.preventDefault();let r=joy.getBoundingClientRect();let x=e.touches[0].clientX-r.left-55,y=e.touches[0].clientY-r.top-55;let d=Math.hypot(x,y);if(d>40){x=x/d*40;y=y/d*40}stick.style.left=30+x+'px';stick.style.top=30+y+'px';jx=x/40;jy=y/40;},{passive:false});
+joy.addEventListener('touchmove',e=>{e.preventDefault();let r=joy.getBoundingClientRect();let x=e.touches[0].clientX-r.left-55,y=e.touches[0].clientY-r.top-55;let d=Math.hypot(x,y);if(d>40){x=x/d*40;y=y/d*40}stick.style.left=30+x+'px';stick.style.top=30+y+'px';jx=x/40;jy=y/40;},{passive:false});
+joy.addEventListener('touchend',()=>{stick.style.left='30px';stick.style.top='30px';jx=0;jy=0;});
+document.getElementById('pass').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){let mates=france.filter(p=>p!==carrier);let best=mates.reduce((a,b)=>Math.hypot(a.x-ball.x,a.y-ball.y)<Math.hypot(b.x-ball.x,b.y-ball.y)?a:b); carrier=best;}});
+document.getElementById('tackle').addEventListener('touchstart',e=>{e.preventDefault(); nz.forEach(p=>{if(Math.hypot(p.x-me.x,p.y-me.y)<90){p.x+=50; if(p===carrier)carrier=null;}});});
+document.getElementById('kick').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){carrier=null; ball.x+=120; ball.y+=(Math.random()-0.5)*80;}});
+</script>
+</body>
+</html>
