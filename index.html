@@ -1,99 +1,1256 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Rugby Nations 26 - V5</title>
-<style>
-body{margin:0;background:#0a1a0f;color:white;font-family:Arial Black;overflow:hidden;touch-action:none}
-#top{height:42px;background:black;display:flex;justify-content:space-between;align-items:center;padding:0 12px}
-#game{width:100vw;height:56vh;background:#1e8e3e}canvas{width:100%;height:100%;display:block}
-#ctrl{height:38vh;background:#0f0f0f;display:flex;justify-content:space-between;align-items:center;padding:12px 10px 30px 10px}
-#joy{width:108px;height:108px;border-radius:50%;background:#ffffff1e;border:2px solid #ffffff77;position:relative}
-#stick{width:52px;height:52px;background:white;border-radius:50%;position:absolute;left:28px;top:28px}
-.btn{border:none;border-radius:14px;padding:14px 18px;font-weight:900}.bW{background:white;color:#002395}.bY{background:#ffcc00;color:black;margin-top:6px}.bR{background:#e11;color:white;padding:20px 26px}
-#end{position:fixed;inset:0;background:#000e;display:none;align-items:center;justify-content:center;flex-direction:column;z-index:20;text-align:center}
-#end h1{font-size:34px;margin:0}#end button{margin-top:20px;padding:16px 28px;border-radius:12px;border:none;font-weight:900;background:#2eab4a;color:white;font-size:18px}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Rugby Nations Web Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #111;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: #fff;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        canvas {
+            display: block;
+            background: #2b702b;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
+        }
+        /* Touch Controls Overlay */
+        #touch-controls {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: none;
+        }
+        .touch-zone {
+            position: absolute;
+            pointer-events: auto;
+        }
+        #joystick-zone {
+            bottom: 20px;
+            left: 20px;
+            width: 140px;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+        }
+        #joystick-knob {
+            position: absolute;
+            top: 45px;
+            left: 45px;
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 255, 255, 0.6);
+            border-radius: 50%;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        #btn-zone {
+            bottom: 20px;
+            right: 20px;
+            display: grid;
+            grid-template-columns: repeat(2, 70px);
+            grid-gap: 12px;
+        }
+        .touch-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(4px);
+        }
+        .touch-btn:active {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
 </head>
 <body>
-<div id="top"><span>🇫🇷 FRA <b id="sa">0</b></span><span id="tm">2:00</span><span><b id="sb">0</b> NZL 🇳🇿</span></div>
-<div id="game"><canvas id="c" width="1000" height="460"></canvas></div>
-<div id="ctrl">
-<div id="joy"><div id="stick"></div></div>
-<div style="display:flex;flex-direction:column"><button class="btn bW" id="pass">PASSE A</button><button class="btn bY" id="kick">DEGAGER</button></div>
-<button class="btn bR" id="tackle">TACLE</button>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="touch-controls">
+        <div id="joystick-zone" class="touch-zone">
+            <div id="joystick-knob"></div>
+        </div>
+        <div id="btn-zone" class="touch-zone">
+            <div class="touch-btn" id="btn-pass-l">P. GAUCHE</div>
+            <div class="touch-btn" id="btn-pass-r">P. DROITE</div>
+            <div class="touch-btn" id="btn-sprint">SPRINT</div>
+            <div class="touch-btn" id="btn-action">ACTION</div>
+        </div>
+    </div>
 </div>
-<div id="end">
-<h1 id="res">FIN DU MATCH</h1>
-<p id="best">Meilleur score: 0</p>
-<p id="final"></p>
-<button onclick="location.reload()">REJOUER</button>
-</div>
+
 <script>
-const C=document.getElementById('c'), X=C.getContext('2d');
-let sa=0,sb=0,time=120,running=true,jx=0,jy=0,carrier=null,ball={x:500,y:230,vx:0,vy:0};
-let lanes=[60,120,180,240,300,360,420];
-let france=lanes.map((y,i)=>({x:180,y,baseX:180,baseY:y,team:0,i}));
-let nz=lanes.map((y,i)=>({x:780,y,baseX:780,baseY:y,team:1,i}));
-let me=france[3]; carrier=me;
-function bestScore(){return parseInt(localStorage.getItem('rn26_best')||'0');}
-function saveBest(){let cur=Math.max(sa,sb);if(cur>bestScore())localStorage.setItem('rn26_best',cur);}
-function kickOff(toFrance){
- france.forEach((p,i)=>{p.x=p.baseX;p.y=p.baseY;}); nz.forEach((p,i)=>{p.x=p.baseX;p.y=p.baseY;});
- me=france[3]; carrier= toFrance? me : nz[3]; ball.x=500; ball.y=230; ball.vx=0; ball.vy=0;
+/**
+ * Rugby Nations Web - Engine & Game Logic
+ */
+
+// --- Audio Synthesizer (Web Audio API) ---
+class SoundController {
+    constructor() {
+        this.ctx = null;
+    }
+    init() {
+        if (!this.ctx) {
+            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+    }
+    whistle() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(2400, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1800, this.ctx.currentTime + 0.25);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.25);
+    }
+    tackle() {
+        if (!this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * 0.15;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(400, this.ctx.currentTime);
+        filter.frequency.linearRampToValueAtTime(50, this.ctx.currentTime + 0.15);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.6, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    }
+    kick() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.1);
+        gain.gain.setValueAtTime(0.5, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+    }
+    cheer() {
+        if (!this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * 0.8;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+            data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(800, this.ctx.currentTime);
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.01, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.2, this.ctx.currentTime + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.8);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    }
 }
-function draw(){
- X.fillStyle='#2eab4a';X.fillRect(0,0,1000,460);
- X.strokeStyle='white';X.lineWidth=3;X.strokeRect(15,15,970,430);X.beginPath();X.moveTo(500,15);X.lineTo(500,445);X.stroke();
- X.strokeRect(15,120,95,220);X.strokeRect(890,120,95,220);
- france.forEach(p=>{
-  if(running && carrier && carrier.team===0 && p!==carrier){p.x+=(carrier.x-90 - p.x)*0.03; p.y+=(p.baseY + (carrier.y-p.baseY)*0.15 - p.y)*0.05;}
-  if(p!==me && p!==carrier){p.x+=(p.baseX - p.x)*0.04;}
-  X.fillStyle='#002395';X.beginPath();X.arc(p.x,p.y,13,0,7);X.fill();
-  if(p===me){X.strokeStyle='white';X.lineWidth=2;X.stroke();} if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
- });
- nz.forEach(p=>{
-  if(running){
-   if(carrier && carrier.team===1){
-    if(p===carrier){p.x-=1.2; if(Math.random()<0.015){let mates=nz.filter(q=>q!==p);let m=mates[Math.floor(Math.random()*mates.length)];carrier=m;}} else {p.x+=(carrier.x+70 - p.x)*0.03; p.y+=(p.baseY*0.3+carrier.y*0.7 - p.y)*0.05;}
-   }else{ // defense
-    p.x+=(ball.x+20 - p.x)*0.02; p.y+=(ball.y + (p.baseY-ball.y)*0.2 - p.y)*0.05;
-   }
-  }
-  X.fillStyle='#111';X.beginPath();X.arc(p.x,p.y,13,0,7);X.fill(); if(p===carrier){X.strokeStyle='yellow';X.lineWidth=3;X.stroke();}
- });
- if(carrier){ball.x=carrier.x+14;ball.y=carrier.y;} else {ball.x+=ball.vx;ball.y+=ball.vy;ball.vx*=0.97;ball.vy*=0.97; ball.x=Math.max(20,Math.min(980,ball.x)); ball.y=Math.max(20,Math.min(440,ball.y)); if(Math.hypot(me.x-ball.x,me.y-ball.y)<26) carrier=me;}
- // plaquage auto
- if(carrier && running){
-  let defs=carrier.team===0?nz:france;
-  for(let d of defs){if(d!==carrier && Math.hypot(d.x-carrier.x,d.y-carrier.y)<26){let was=carrier;carrier=null;ball.vx=(was.x-d.x)*0.3;ball.vy=(was.y-d.y)*0.3+ (Math.random()-0.5)*2; setTimeout(()=>{if(!carrier){let near=[...france,...nz].reduce((a,b)=>Math.hypot(a.x-ball.x,a.y-ball.y)<Math.hypot(b.x-ball.x,b.y-ball.y)?a:b); carrier=near;}},300); break;}}
- }
- // ESSAI une seule fois
- if(ball.x>880 && ball.y>120 && ball.y<340 && running){
-  if(carrier && carrier.team===0){sa+=5;document.getElementById('sa').innerText=sa;} else if(carrier && carrier.team===1){sb+=5;document.getElementById('sb').innerText=sb;}
-  else if(ball.x>880){ // ballon mort
-   if(ball.vx>0){sa+=5;document.getElementById('sa').innerText=sa;} else {sb+=5;document.getElementById('sb').innerText=sb;}
-  }
-  saveBest(); kickOff(false);
- }
- if(ball.x<120 && ball.y>120 && ball.y<340 && running){
-  if(carrier && carrier.team===1){sb+=5;document.getElementById('sb').innerText=sb;} else if(carrier && carrier.team===0){sa+=5;document.getElementById('sa').innerText=sa;}
-  saveBest(); kickOff(true);
- }
- X.fillStyle='white';X.beginPath();X.ellipse(ball.x,ball.y,11,7,0.6,0,7);X.fill();
+
+const sounds = new SoundController();
+
+// --- Configuration & Constantes ---
+const TEAMS = {
+    FRA: { name: 'France', color: '#002395', altColor: '#ffffff', stats: { speed: 88, power: 85, kicking: 82 } },
+    NZL: { name: 'Nouvelle-Zélande', color: '#111111', altColor: '#ffffff', stats: { speed: 92, power: 90, kicking: 88 } },
+    RSA: { name: 'Afrique du Sud', color: '#007A4D', altColor: '#FFB81C', stats: { speed: 84, power: 95, kicking: 85 } },
+    IRL: { name: 'Irlande', color: '#009A44', altColor: '#ffffff', stats: { speed: 86, power: 88, kicking: 86 } },
+    ENG: { name: 'Angleterre', color: '#FFFFFF', altColor: '#CC0000', stats: { speed: 85, power: 87, kicking: 84 } },
+    AUS: { name: 'Australie', color: '#FFCD00', altColor: '#005537', stats: { speed: 89, power: 82, kicking: 80 } }
+};
+
+const PITCH = {
+    length: 1200, // 100m + 2x10m in-goal
+    width: 700,   // 70m
+    inGoal: 100,
+    margin: 50
+};
+
+// --- Initialisation Canvas ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let width, height;
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
 }
-function loop(){if(running){me.x+=jx*4.2;me.y+=jy*4.2;me.x=Math.max(20,Math.min(980,me.x));me.y=Math.max(20,Math.min(440,me.y));} draw(); requestAnimationFrame(loop);}loop();
-// chrono
-let timer=setInterval(()=>{if(!running)return;time--;let m=Math.floor(time/60)+':'+String(time%60).padStart(2,'0');document.getElementById('tm').innerText=m; if(time<=0){running=false;clearInterval(timer);saveBest();document.getElementById('final').innerText=`Score final: FRA ${sa} - ${sb} NZL`;document.getElementById('best').innerText='Meilleur score: '+bestScore();document.getElementById('end').style.display='flex';}},1000);
-// joystick
-const joy=document.getElementById('joy'),stick=document.getElementById('stick');
-function mv(e){e.preventDefault();let r=joy.getBoundingClientRect();let x=(e.touches?e.touches[0].clientX:e.clientX)-r.left-54;let y=(e.touches?e.touches[0].clientY:e.clientY)-r.top-54;let d=Math.hypot(x,y);if(d>38){x=x/d*38;y=y/d*38}stick.style.left=28+x+'px';stick.style.top=28+y+'px';jx=x/38;jy=y/38}
-joy.addEventListener('touchmove',mv,{passive:false});joy.addEventListener('touchstart',mv,{passive:false});joy.addEventListener('touchend',()=>{stick.style.left='28px';stick.style.top='28px';jx=0;jy=0;});
-document.getElementById('pass').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){let mates=france.filter(p=>p!==carrier);let b=mates.reduce((a,b)=> Math.abs(b.y-carrier.y)<Math.abs(a.y-carrier.y)?b:a);carrier=b;}});
-document.getElementById('tackle').addEventListener('touchstart',e=>{e.preventDefault(); [...nz,...france].forEach(p=>{if(p.team!==me.team && Math.hypot(p.x-me.x,p.y-me.y)<85){p.x+=(p.x-me.x)*0.4; if(p===carrier){carrier=null; ball.vx=(p.x-me.x)*0.2;}}});});
-document.getElementById('kick').addEventListener('touchstart',e=>{e.preventDefault(); if(carrier && carrier.team===0){carrier=null; ball.vx=10+Math.random()*4; ball.vy=(Math.random()-0.5)*6;}});
-kickOff(true);
+window.addEventListener('resize', resize);
+resize();
+
+// --- Etat Global ---
+const GameState = {
+    MENU: 0,
+    TEAM_SELECT: 1,
+    MATCH: 2,
+    RUCK: 3,
+    KICKING_CHALLENGE: 4,
+    GAME_OVER: 5
+};
+
+let currentState = GameState.MENU;
+let gameMode = 'MATCH'; // 'MATCH' or 'KICKING'
+let selectedPlayerTeam = 'FRA';
+let selectedCpuTeam = 'NZL';
+
+// Input Engine
+const keys = {};
+let touchInput = { dx: 0, dy: 0, active: false };
+
+window.addEventListener('keydown', e => {
+    sounds.init();
+    keys[e.code] = true;
+});
+window.addEventListener('keyup', e => {
+    keys[e.code] = false;
+});
+
+// Setup Touch Controls
+if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+    document.getElementById('touch-controls').style.display = 'block';
+}
+
+const joystickZone = document.getElementById('joystick-zone');
+const joystickKnob = document.getElementById('joystick-knob');
+let touchId = null;
+let joyCenter = { x: 0, y: 0 };
+
+joystickZone.addEventListener('touchstart', e => {
+    sounds.init();
+    const touch = e.changedTouches[0];
+    touchId = touch.identifier;
+    const rect = joystickZone.getBoundingClientRect();
+    joyCenter = { x: rect.left + rect.width/2, y: rect.top + rect.height/2 };
+    updateJoystick(touch);
+}, {passive: false});
+
+joystickZone.addEventListener('touchmove', e => {
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === touchId) {
+            updateJoystick(e.changedTouches[i]);
+        }
+    }
+}, {passive: false});
+
+const resetJoystick = () => {
+    touchInput.dx = 0;
+    touchInput.dy = 0;
+    touchInput.active = false;
+    joystickKnob.style.left = '45px';
+    joystickKnob.style.top = '45px';
+    touchId = null;
+};
+
+joystickZone.addEventListener('touchend', resetJoystick);
+joystickZone.addEventListener('touchcancel', resetJoystick);
+
+function updateJoystick(touch) {
+    let dx = touch.clientX - joyCenter.x;
+    let dy = touch.clientY - joyCenter.y;
+    let dist = Math.hypot(dx, dy);
+    let maxR = 45;
+    if (dist > maxR) {
+        dx = (dx / dist) * maxR;
+        dy = (dy / dist) * maxR;
+    }
+    joystickKnob.style.left = (45 + dx) + 'px';
+    joystickKnob.style.top = (45 + dy) + 'px';
+    touchInput.dx = dx / maxR;
+    touchInput.dy = dy / maxR;
+    touchInput.active = true;
+}
+
+// Touch Buttons
+function bindBtn(id, code) {
+    const el = document.getElementById(id);
+    el.addEventListener('touchstart', (e) => { e.preventDefault(); sounds.init(); keys[code] = true; });
+    el.addEventListener('touchend', (e) => { e.preventDefault(); keys[code] = false; });
+}
+bindBtn('btn-pass-l', 'KeyA');
+bindBtn('btn-pass-r', 'KeyE');
+bindBtn('btn-sprint', 'ShiftLeft');
+bindBtn('btn-action', 'Space');
+
+// --- Modèles du Jeu ---
+class Ball {
+    constructor() {
+        this.x = PITCH.length / 2;
+        this.y = PITCH.width / 2;
+        this.z = 0; // Altitude pour les tirs/passes
+        this.vx = 0;
+        this.vy = 0;
+        this.vz = 0;
+        this.carrier = null;
+        this.isFree = true;
+    }
+
+    update() {
+        if (this.carrier) {
+            this.x = this.carrier.x + Math.cos(this.carrier.angle) * 10;
+            this.y = this.carrier.y + Math.sin(this.carrier.angle) * 10;
+            this.z = 5;
+            this.vx = 0;
+            this.vy = 0;
+            this.vz = 0;
+        } else {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.z += this.vz;
+
+            if (this.z > 0) {
+                this.vz -= 0.3; // Gravité
+            } else {
+                this.z = 0;
+                this.vz = 0;
+                this.vx *= 0.85; // Friction
+                this.vy *= 0.85;
+            }
+
+            // Murs
+            this.x = Math.max(10, Math.min(PITCH.length - 10, this.x));
+            this.y = Math.max(10, Math.min(PITCH.width - 10, this.y));
+        }
+    }
+
+    draw(ctx) {
+        // Ombre
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y, 6, 4, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Ballon
+        ctx.save();
+        ctx.translate(this.x, this.y - this.z);
+        ctx.fillStyle = '#f0f0f0';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 7, 5, Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+        ctx.restore();
+    }
+}
+
+class Player {
+    constructor(x, y, team, isUser, role) {
+        this.x = x;
+        this.y = y;
+        this.team = team; // 'user' or 'cpu'
+        this.teamKey = team === 'user' ? selectedPlayerTeam : selectedCpuTeam;
+        this.isUser = isUser;
+        this.role = role; // 'forward', 'back'
+        
+        this.vx = 0;
+        this.vy = 0;
+        this.angle = team === 'user' ? 0 : Math.PI;
+        this.stamina = 100;
+        this.isTackled = false;
+        this.tackleTimer = 0;
+        
+        // Dynamic Stats
+        const stats = TEAMS[this.teamKey].stats;
+        this.baseSpeed = (stats.speed / 100) * 3.2 + 1.2;
+        this.power = stats.power;
+    }
+
+    update(ball, match) {
+        if (this.isTackled) {
+            this.tackleTimer--;
+            if (this.tackleTimer <= 0) {
+                this.isTackled = false;
+            }
+            return;
+        }
+
+        let speed = this.baseSpeed;
+
+        if (this.isUser && this.team === 'user' && ball.carrier === this) {
+            // SPRINT
+            if ((keys['ShiftLeft'] || keys['ShiftRight']) && this.stamina > 5) {
+                speed *= 1.45;
+                this.stamina -= 0.6;
+            }
+        }
+        if (this.stamina < 100) this.stamina += 0.15;
+
+        // Contrôles Joueur Actif
+        if (this.isUser) {
+            let dx = 0, dy = 0;
+            if (keys['ArrowUp'] || keys['KeyW']) dy -= 1;
+            if (keys['ArrowDown'] || keys['KeyS']) dy += 1;
+            if (keys['ArrowLeft'] || keys['KeyA'] && !ball.carrier) dx -= 1;
+            if (keys['ArrowRight'] || keys['KeyD'] && !ball.carrier) dx += 1;
+
+            if (touchInput.active) {
+                dx = touchInput.dx;
+                dy = touchInput.dy;
+            }
+
+            if (dx !== 0 || dy !== 0) {
+                let len = Math.hypot(dx, dy);
+                if (len > 1) { dx /= len; dy /= len; }
+                this.vx = dx * speed;
+                this.vy = dy * speed;
+                this.angle = Math.atan2(this.vy, this.vx);
+            } else {
+                this.vx *= 0.5;
+                this.vy *= 0.5;
+            }
+        } else {
+            // IA simple
+            this.updateAI(ball, match);
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Limites du terrain
+        this.x = Math.max(15, Math.min(PITCH.length - 15, this.x));
+        this.y = Math.max(15, Math.min(PITCH.width - 15, this.y));
+    }
+
+    updateAI(ball, match) {
+        let targetX = this.x;
+        let targetY = this.y;
+
+        if (ball.carrier) {
+            if (ball.carrier.team === this.team) {
+                // Attaque : Soutien derrière le porteur
+                let offset = (this.team === 'user') ? -60 : 60;
+                targetX = ball.carrier.x + offset;
+                targetY = ball.carrier.y + (this.role === 'forward' ? 30 : -40);
+            } else {
+                // Défense : Traquer le porteur
+                targetX = ball.carrier.x;
+                targetY = ball.carrier.y;
+            }
+        } else {
+            // Ballon libre
+            targetX = ball.x;
+            targetY = ball.y;
+        }
+
+        let dx = targetX - this.x;
+        let dy = targetY - this.y;
+        let dist = Math.hypot(dx, dy);
+
+        if (dist > 10) {
+            let spd = this.baseSpeed * 0.85;
+            this.vx = (dx / dist) * spd;
+            this.vy = (dy / dist) * spd;
+            this.angle = Math.atan2(this.vy, this.vx);
+        } else {
+            this.vx = 0;
+            this.vy = 0;
+        }
+    }
+
+    draw(ctx, isControlled) {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // Indicateur de sélection
+        if (isControlled) {
+            ctx.strokeStyle = '#FFFF00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, 16, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // Barre d'endurance
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(-15, -24, 30, 4);
+            ctx.fillStyle = this.stamina > 30 ? '#00FF00' : '#FF0000';
+            ctx.fillRect(-15, -24, (this.stamina / 100) * 30, 4);
+        }
+
+        // Corps Joueur
+        ctx.rotate(this.angle);
+        ctx.fillStyle = TEAMS[this.teamKey].color;
+        ctx.beginPath();
+        ctx.arc(0, 0, 12, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = TEAMS[this.teamKey].altColor;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // Tête / Epaules
+        ctx.fillStyle = '#ffcc99';
+        ctx.beginPath();
+        ctx.arc(4, 0, 5, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.restore();
+    }
+}
+
+// --- Moteur de Match Rugby ---
+class RugbyMatch {
+    constructor() {
+        this.ball = new Ball();
+        this.userPlayers = [];
+        this.cpuPlayers = [];
+        this.controlledUserIndex = 0;
+        
+        this.userScore = 0;
+        this.cpuScore = 0;
+        this.timer = 120; // 2 minutes par mi-temps
+        this.half = 1;
+        this.ruckState = null;
+        this.message = "COUP D'ENVOI!";
+        this.messageTimer = 120;
+
+        this.initTeams();
+    }
+
+    initTeams() {
+        this.userPlayers = [];
+        this.cpuPlayers = [];
+
+        // Formation 7v7 (3 Avants, 4 Arrières)
+        const roles = ['forward', 'forward', 'forward', 'back', 'back', 'back', 'back'];
+
+        // Joueurs Utilisateur (Attaque vers la droite >)
+        for (let i = 0; i < 7; i++) {
+            let x = 300 + (i < 3 ? 100 : 0);
+            let y = 100 + i * 80;
+            this.userPlayers.push(new Player(x, y, 'user', i === 0, roles[i]));
+        }
+
+        // Joueurs CPU (Attaque vers la gauche <)
+        for (let i = 0; i < 7; i++) {
+            let x = 800 - (i < 3 ? 100 : 0);
+            let y = 100 + i * 80;
+            this.cpuPlayers.push(new Player(x, y, 'cpu', false, roles[i]));
+        }
+
+        // Engagement
+        this.ball.x = PITCH.length / 2;
+        this.ball.y = PITCH.width / 2;
+        this.ball.carrier = this.userPlayers[0];
+    }
+
+    update() {
+        if (this.messageTimer > 0) this.messageTimer--;
+
+        // Timer de Match
+        if (this.timer > 0) {
+            this.timer -= 1/60;
+        } else if (this.half === 1) {
+            this.half = 2;
+            this.timer = 120;
+            this.showMessage("SECONDE MI-TEMPS !");
+            this.initTeams();
+        } else if (currentState !== GameState.GAME_OVER) {
+            currentState = GameState.GAME_OVER;
+        }
+
+        // Changement dynamique de joueur contrôlé
+        this.updateControlledPlayer();
+
+        // Mettre à jour la balle
+        this.ball.update();
+
+        // Mettre à jour l'équipe utilisateur
+        this.userPlayers.forEach((p, index) => {
+            p.isUser = (index === this.controlledUserIndex);
+            p.update(this.ball, this);
+        });
+
+        // Mettre à jour l'équipe CPU
+        this.cpuPlayers.forEach(p => p.update(this.ball, this));
+
+        // Interractions
+        this.checkCollisions();
+        this.handlePasses();
+        this.checkTry();
+    }
+
+    updateControlledPlayer() {
+        if (this.ball.carrier && this.ball.carrier.team === 'user') {
+            this.controlledUserIndex = this.userPlayers.indexOf(this.ball.carrier);
+            return;
+        }
+        // Sinon, contrôler le joueur le plus proche de la balle
+        let minDist = Infinity;
+        let bestIndex = 0;
+        this.userPlayers.forEach((p, idx) => {
+            let d = Math.hypot(p.x - this.ball.x, p.y - this.ball.y);
+            if (d < minDist) {
+                minDist = d;
+                bestIndex = idx;
+            }
+        });
+        this.controlledUserIndex = bestIndex;
+    }
+
+    checkCollisions() {
+        // Ramassage du ballon libre
+        if (this.ball.isFree && this.ball.z < 10) {
+            const all = [...this.userPlayers, ...this.cpuPlayers];
+            for (let p of all) {
+                if (Math.hypot(p.x - this.ball.x, p.y - this.ball.y) < 20) {
+                    this.ball.carrier = p;
+                    this.ball.isFree = false;
+                    break;
+                }
+            }
+        }
+
+        // Plaquages
+        if (this.ball.carrier) {
+            const carrier = this.ball.carrier;
+            const defenders = carrier.team === 'user' ? this.cpuPlayers : this.userPlayers;
+
+            for (let d of defenders) {
+                if (Math.hypot(d.x - carrier.x, d.y - carrier.y) < 18) {
+                    // PLAQUAGE REUSSI
+                    sounds.tackle();
+                    carrier.isTackled = true;
+                    carrier.tackleTimer = 60;
+                    this.ball.carrier = null;
+                    this.ball.isFree = true;
+
+                    // Déclencher un Mini-Jeu de RUCK
+                    startRuck(carrier, d);
+                    break;
+                }
+            }
+        }
+    }
+
+    handlePasses() {
+        const carrier = this.ball.carrier;
+        if (!carrier || carrier.team !== 'user') return;
+
+        // Passe Gauche (Touche A / Q)
+        if (keys['KeyA']) {
+            this.executePass(carrier, -1);
+            keys['KeyA'] = false;
+        }
+        // Passe Droite (Touche E)
+        if (keys['KeyE']) {
+            this.executePass(carrier, 1);
+            keys['KeyE'] = false;
+        }
+    }
+
+    executePass(carrier, dir) {
+        // Chercher un coéquipier à gauche (-1) ou droite (+1) ET EN ARRIÈRE !
+        let bestTarget = null;
+        let minDist = Infinity;
+
+        this.userPlayers.forEach(p => {
+            if (p === carrier) return;
+            
+            // Regle Rugby: La passe doit aller vers l'arrière
+            let isBackward = p.x < carrier.x - 5;
+            let isRightSide = dir > 0 ? (p.y > carrier.y + 10) : (p.y < carrier.y - 10);
+
+            if (isBackward && isRightSide) {
+                let dist = Math.hypot(p.x - carrier.x, p.y - carrier.y);
+                if (dist < minDist) {
+                    minDist = dist;
+                    bestTarget = p;
+                }
+            }
+        });
+
+        if (bestTarget) {
+            sounds.kick();
+            this.ball.carrier = null;
+            this.ball.isFree = false;
+            
+            let angle = Math.atan2(bestTarget.y - carrier.y, bestTarget.x - carrier.x);
+            let speed = 7;
+            this.ball.vx = Math.cos(angle) * speed;
+            this.ball.vy = Math.sin(angle) * speed;
+            this.ball.vz = 3;
+            
+            setTimeout(() => {
+                this.ball.isFree = true;
+            }, 200);
+        } else {
+            this.showMessage("PASSE EN AVANT / PAS DE SOUTIEN !");
+        }
+    }
+
+    checkTry() {
+        if (!this.ball.carrier) return;
+
+        // Essai Joueur (In-Goal Droit)
+        if (this.ball.carrier.team === 'user' && this.ball.x >= PITCH.length - PITCH.inGoal) {
+            sounds.cheer();
+            sounds.whistle();
+            this.userScore += 5;
+            this.showMessage("ESSAI POUR LA FRANCE (+5) !");
+            setTimeout(() => this.initTeams(), 2500);
+        }
+        // Essai CPU (In-Goal Gauche)
+        else if (this.ball.carrier.team === 'cpu' && this.ball.x <= PITCH.inGoal) {
+            sounds.whistle();
+            this.cpuScore += 5;
+            this.showMessage("ESSAI ADVERSAIRE (+5) !");
+            setTimeout(() => this.initTeams(), 2500);
+        }
+    }
+
+    showMessage(txt) {
+        this.message = txt;
+        this.messageTimer = 120;
+    }
+
+    draw(ctx) {
+        // Terrain
+        drawPitch(ctx);
+
+        // Joueurs
+        this.userPlayers.forEach((p, idx) => p.draw(ctx, idx === this.controlledUserIndex));
+        this.cpuPlayers.forEach(p => p.draw(ctx, false));
+
+        // Ballon
+        this.ball.draw(ctx);
+
+        // Interface HUD
+        drawHUD(ctx, this);
+    }
+}
+
+let match = null;
+
+// --- Système de RUCK ---
+let ruckProgress = 50; // 0 = Perdu, 100 = Gagné
+
+function startRuck(tackled, tackler) {
+    currentState = GameState.RUCK;
+    ruckProgress = 50;
+}
+
+function updateRuck() {
+    // La jauge baisse constamment
+    ruckProgress -= 0.6;
+
+    // Taper la touche Espace / Bouton Action pour pousser
+    if (keys['Space']) {
+        ruckProgress += 4;
+        keys['Space'] = false;
+    }
+
+    if (ruckProgress >= 100) {
+        // Ruck Gagné !
+        sounds.whistle();
+        currentState = GameState.MATCH;
+        match.ball.carrier = match.userPlayers[match.controlledUserIndex];
+        match.ball.isFree = false;
+        match.showMessage("RUCK GAGNE !");
+    } else if (ruckProgress <= 0) {
+        // Ruck Perdu
+        sounds.whistle();
+        currentState = GameState.MATCH;
+        match.ball.carrier = match.cpuPlayers[0];
+        match.ball.isFree = false;
+        match.showMessage("BALLON PERDU AU RUCK !");
+    }
+}
+
+function drawRuckUI(ctx) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+    ctx.fillRect(width/2 - 200, height/2 - 80, 400, 160);
+
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(width/2 - 200, height/2 - 80, 400, 160);
+
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 22px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText("RUCK ! BATAILLE POUR LE BALLON", width/2, height/2 - 40);
+    
+    ctx.font = '14px Arial';
+    ctx.fillText("Mittez à mort la touche ESPACE / ACTION !", width/2, height/2 - 15);
+
+    // Barre de Ruck
+    ctx.fillStyle = '#444';
+    ctx.fillRect(width/2 - 150, height/2 + 15, 300, 30);
+
+    let col = ruckProgress > 50 ? '#00FF00' : '#FF0000';
+    ctx.fillStyle = col;
+    ctx.fillRect(width/2 - 150, height/2 + 15, (ruckProgress / 100) * 300, 30);
+
+    ctx.strokeStyle = '#fff';
+    ctx.strokeRect(width/2 - 150, height/2 + 15, 300, 30);
+
+    ctx.restore();
+}
+
+// --- Mode Challenge Kicking (Tirs au But) ---
+class KickingChallenge {
+    constructor() {
+        this.ballX = 300;
+        this.ballY = PITCH.width / 2;
+        this.angle = 0; // Orientation de la flèche
+        this.angleSpeed = 0.03;
+        this.power = 0;
+        this.powerSpeed = 2;
+        this.state = 'AIM'; // 'AIM', 'POWER', 'FLIGHT', 'RESULT'
+        
+        this.windX = (Math.random() - 0.5) * 4;
+        this.ballPos = { x: 300, y: PITCH.width / 2, z: 0 };
+        this.ballVel = { x: 0, y: 0, z: 0 };
+        
+        this.score = 0;
+        this.attempts = 5;
+        this.resultText = "";
+    }
+
+    resetKick() {
+        this.ballX = 200 + Math.random() * 300;
+        this.ballY = 150 + Math.random() * (PITCH.width - 300);
+        this.ballPos = { x: this.ballX, y: this.ballY, z: 0 };
+        this.angle = 0;
+        this.power = 0;
+        this.state = 'AIM';
+        this.windX = (Math.random() - 0.5) * 5;
+    }
+
+    update() {
+        if (this.state === 'AIM') {
+            this.angle += this.angleSpeed;
+            if (Math.abs(this.angle) > 0.6) this.angleSpeed *= -1;
+
+            if (keys['Space']) {
+                sounds.init();
+                this.state = 'POWER';
+                keys['Space'] = false;
+            }
+        } 
+        else if (this.state === 'POWER') {
+            this.power += this.powerSpeed;
+            if (this.power >= 100 || this.power <= 0) this.powerSpeed *= -1;
+
+            if (keys['Space']) {
+                sounds.kick();
+                this.state = 'FLIGHT';
+                keys['Space'] = false;
+
+                // Calcul Trajectoire
+                let p = this.power / 100;
+                let totalAngle = this.angle;
+                this.ballVel.x = Math.cos(totalAngle) * p * 18;
+                this.ballVel.y = Math.sin(totalAngle) * p * 12;
+                this.ballVel.z = p * 14;
+            }
+        } 
+        else if (this.state === 'FLIGHT') {
+            this.ballPos.x += this.ballVel.x;
+            this.ballPos.y += this.ballVel.y + this.windX * 0.1;
+            this.ballPos.z += this.ballVel.z;
+            this.ballVel.z -= 0.4; // Gravité
+
+            // Détection Poteaux (Poteaux situés à x = PITCH.length - PITCH.inGoal = 1100)
+            let goalX = PITCH.length - PITCH.inGoal;
+            if (this.ballPos.x >= goalX && this.ballPos.x <= goalX + 20) {
+                let postTopY = PITCH.width / 2 - 60;
+                let postBotY = PITCH.width / 2 + 60;
+
+                // Entre les poteaux et au-dessus de la barre (z > 25)
+                if (this.ballPos.y >= postTopY && this.ballPos.y <= postBotY && this.ballPos.z >= 20) {
+                    sounds.cheer();
+                    this.resultText = "TIR REUSSI ! (+3)";
+                    this.score += 3;
+                } else {
+                    this.resultText = "RÉRATÉ !";
+                }
+                this.state = 'RESULT';
+                setTimeout(() => {
+                    this.attempts--;
+                    if (this.attempts > 0) this.resetKick();
+                    else currentState = GameState.GAME_OVER;
+                }, 2000);
+            }
+
+            if (this.ballPos.z < 0 || this.ballPos.x > PITCH.length) {
+                this.resultText = "RÉRATÉ !";
+                this.state = 'RESULT';
+                setTimeout(() => {
+                    this.attempts--;
+                    if (this.attempts > 0) this.resetKick();
+                    else currentState = GameState.GAME_OVER;
+                }, 2000);
+            }
+        }
+    }
+
+    draw(ctx) {
+        drawPitch(ctx);
+
+        // Dessiner Poteaux H en 2.5D
+        let gx = PITCH.length - PITCH.inGoal;
+        let gy = PITCH.width / 2;
+
+        ctx.save();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 6;
+
+        // Barre Transversale
+        ctx.beginPath();
+        ctx.moveTo(gx, gy - 60);
+        ctx.lineTo(gx, gy + 60);
+        ctx.stroke();
+
+        // Poteaux Verticaux
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(gx, gy - 60); ctx.lineTo(gx, gy - 200);
+        ctx.moveTo(gx, gy + 60); ctx.lineTo(gx, gy + 200);
+        ctx.stroke();
+        ctx.restore();
+
+        // Ballon
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(this.ballPos.x, this.ballPos.y, 6, 4, 0, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = '#FFF';
+        ctx.beginPath();
+        ctx.ellipse(this.ballPos.x, this.ballPos.y - this.ballPos.z, 7, 5, Math.PI/4, 0, Math.PI*2);
+        ctx.fill();
+
+        // Ligne de Visée & Jauge
+        if (this.state === 'AIM') {
+            ctx.strokeStyle = '#FFFF00';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(this.ballX, this.ballY);
+            ctx.lineTo(this.ballX + Math.cos(this.angle) * 120, this.ballY + Math.sin(this.angle) * 120);
+            ctx.stroke();
+        }
+
+        // HUD Kicking
+        ctx.fillStyle = '#FFF';
+        ctx.font = 'bold 20px Arial';
+        ctx.fillText(`Tirs restants: ${this.attempts} | Score: ${this.score}`, 50, 40);
+        ctx.fillText(`Vent: ${this.windX > 0 ? '→' : '←'} ${Math.abs(this.windX).toFixed(1)} m/s`, 50, 70);
+
+        if (this.state === 'POWER') {
+            ctx.fillStyle = 'rgba(0,0,0,0.6)';
+            ctx.fillRect(width/2 - 100, height - 100, 200, 25);
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(width/2 - 100, height - 100, (this.power/100)*200, 25);
+            ctx.strokeStyle = '#FFF';
+            ctx.strokeRect(width/2 - 100, height - 100, 200, 25);
+        }
+
+        if (this.state === 'RESULT') {
+            ctx.font = 'bold 36px Arial';
+            ctx.fillStyle = '#FFFF00';
+            ctx.textAlign = 'center';
+            ctx.fillText(this.resultText, width/2, height/2);
+        }
+    }
+}
+
+let kickingMode = null;
+
+// --- Rendering du Terrain ---
+function drawPitch(ctx) {
+    // Pelouse
+    ctx.fillStyle = '#2e7d32';
+    ctx.fillRect(0, 0, PITCH.length, PITCH.width);
+
+    // Bandes de gazon alternées
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.05)';
+    for (let i = 0; i < PITCH.length; i += 100) {
+        if ((i / 100) % 2 === 0) {
+            ctx.fillRect(i, 0, 100, PITCH.width);
+        }
+    }
+
+    // Lignes blanches
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 4;
+
+    // Ligne de touche / En-but
+    ctx.strokeRect(PITCH.inGoal, 0, PITCH.length - 2 * PITCH.inGoal, PITCH.width);
+    ctx.strokeRect(0, 0, PITCH.length, PITCH.width);
+
+    // Ligne médiane (50m)
+    ctx.beginPath();
+    ctx.moveTo(PITCH.length / 2, 0);
+    ctx.lineTo(PITCH.length / 2, PITCH.width);
+    ctx.stroke();
+
+    // Lignes des 22m
+    ctx.beginPath();
+    ctx.moveTo(PITCH.inGoal + 220, 0); ctx.lineTo(PITCH.inGoal + 220, PITCH.width);
+    ctx.moveTo(PITCH.length - PITCH.inGoal - 220, 0); ctx.lineTo(PITCH.length - PITCH.inGoal - 220, PITCH.width);
+    ctx.stroke();
+
+    // Poteaux en H (Mode Match)
+    drawGoalPosts(ctx, PITCH.inGoal);
+    drawGoalPosts(ctx, PITCH.length - PITCH.inGoal);
+}
+
+function drawGoalPosts(ctx, x) {
+    let y = PITCH.width / 2;
+    ctx.strokeStyle = '#FFFFFF';
+    ctx.lineWidth = 5;
+
+    ctx.beginPath();
+    ctx.moveTo(x, y - 50); ctx.lineTo(x, y + 50); // Barre
+    ctx.moveTo(x, y - 50); ctx.lineTo(x - 10, y - 120); // Poteau Haut
+    ctx.moveTo(x, y + 50); ctx.lineTo(x - 10, y + 120); // Poteau Bas
+    ctx.stroke();
+}
+
+function drawHUD(ctx, match) {
+    // Panneau de Score
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.fillRect(width / 2 - 180, 10, 360, 50);
+    ctx.strokeStyle = '#FFD700';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(width / 2 - 180, 10, 360, 50);
+
+    ctx.fillStyle = '#FFF';
+    ctx.font = 'bold 18px Arial';
+    ctx.textAlign = 'center';
+
+    let tMin = Math.floor(match.timer / 60);
+    let tSec = Math.floor(match.timer % 60).toString().padStart(2, '0');
+
+    ctx.fillText(`${TEAMS[selectedPlayerTeam].name}  ${match.userScore} - ${match.cpuScore}  ${TEAMS[selectedCpuTeam].name}`, width / 2, 32);
+    ctx.font = '12px Arial';
+    ctx.fillStyle = '#FFD700';
+    ctx.fillText(`MI-TEMPS ${match.half} | ${tMin}:${tSec}`, width / 2, 48);
+
+    // Messages Flash
+    if (match.messageTimer > 0) {
+        ctx.font = 'bold 28px Arial';
+        ctx.fillStyle = '#FFFF00';
+        ctx.shadowColor = '#000';
+        ctx.shadowBlur = 5;
+        ctx.fillText(match.message, width / 2, 100);
+        ctx.shadowBlur = 0;
+    }
+}
+
+// --- Menu et Rendu des Écrans ---
+function drawMenu() {
+    ctx.fillStyle = '#111';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 48px Arial';
+    ctx.fillText("RUGBY NATIONS WEB", width / 2, height / 3);
+
+    ctx.fillStyle = '#FFF';
+    ctx.font = '20px Arial';
+    ctx.fillText("Appuyez sur ESPACE ou TAPEZ l'écran pour jouer", width / 2, height / 2);
+
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#AAA';
+    ctx.fillText("Contrôles PC: ZQSD / Flèches (Déplacement) | A/E (Passes) | ESPACE (Plaquage/Ruck) | SHIFT (Sprint)", width / 2, height - 60);
+
+    if (keys['Space'] || touchInput.active) {
+        sounds.init();
+        currentState = GameState.TEAM_SELECT;
+        keys['Space'] = false;
+    }
+}
+
+function drawTeamSelect() {
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFF';
+    ctx.font = 'bold 32px Arial';
+    ctx.fillText("SELECTION DE L'EQUIPE", width / 2, 80);
+
+    let keysTeam = Object.keys(TEAMS);
+    let startX = width / 2 - (keysTeam.length * 60);
+
+    keysTeam.forEach((k, i) => {
+        let x = startX + i * 120;
+        let y = height / 2 - 40;
+
+        ctx.fillStyle = (selectedPlayerTeam === k) ? '#FFD700' : '#333';
+        ctx.fillRect(x - 45, y - 45, 90, 90);
+
+        ctx.fillStyle = TEAMS[k].color;
+        ctx.beginPath();
+        ctx.arc(x, y, 30, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#FFF';
+        ctx.font = 'bold 14px Arial';
+        ctx.fillText(k, x, y + 60);
+    });
+
+    ctx.fillStyle = '#FFD700';
+    ctx.font = '20px Arial';
+    ctx.fillText("Appuyez sur [1] pour MATCH  ou  [2] pour TIRS AU BUT", width / 2, height - 100);
+
+    if (keys['Digit1'] || keys['Numpad1']) {
+        gameMode = 'MATCH';
+        match = new RugbyMatch();
+        currentState = GameState.MATCH;
+    } else if (keys['Digit2'] || keys['Numpad2']) {
+        gameMode = 'KICKING';
+        kickingMode = new KickingChallenge();
+        currentState = GameState.KICKING_CHALLENGE;
+    }
+}
+
+function drawGameOver() {
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#FFD700';
+    ctx.font = 'bold 42px Arial';
+    ctx.fillText("FIN DU MATCH", width / 2, height / 3);
+
+    ctx.fillStyle = '#FFF';
+    ctx.font = '24px Arial';
+    if (gameMode === 'MATCH') {
+        ctx.fillText(`Score Final : ${match.userScore} - ${match.cpuScore}`, width / 2, height / 2);
+    } else {
+        ctx.fillText(`Score Tirs au But : ${kickingMode.score} Points`, width / 2, height / 2);
+    }
+
+    ctx.font = '18px Arial';
+    ctx.fillText("Appuyez sur ESPACE pour revenir au Menu Principal", width / 2, height - 120);
+
+    if (keys['Space']) {
+        currentState = GameState.MENU;
+        keys['Space'] = false;
+    }
+}
+
+// --- Boucle Principale (Game Loop) ---
+function gameLoop() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Ajustement de la Caméra dynamique pour suivre le ballon
+    let camX = 0;
+    let camY = 0;
+
+    if (currentState === GameState.MATCH || currentState === GameState.RUCK) {
+        camX = width / 2 - match.ball.x;
+        camY = height / 2 - match.ball.y;
+        
+        // Clamp de la Caméra
+        camX = Math.min(0, Math.max(width - PITCH.length, camX));
+        camY = Math.min(0, Math.max(height - PITCH.width, camY));
+
+        ctx.save();
+        ctx.translate(camX, camY);
+    } else if (currentState === GameState.KICKING_CHALLENGE) {
+        camX = width / 2 - kickingMode.ballPos.x;
+        camY = height / 2 - kickingMode.ballPos.y;
+        camX = Math.min(0, Math.max(width - PITCH.length, camX));
+        camY = Math.min(0, Math.max(height - PITCH.width, camY));
+
+        ctx.save();
+        ctx.translate(camX, camY);
+    }
+
+    // Machine à états
+    switch (currentState) {
+        case GameState.MENU:
+            drawMenu();
+            break;
+        case GameState.TEAM_SELECT:
+            drawTeamSelect();
+            break;
+        case GameState.MATCH:
+            match.update();
+            match.draw(ctx);
+            break;
+        case GameState.RUCK:
+            match.draw(ctx);
+            updateRuck();
+            drawRuckUI(ctx);
+            break;
+        case GameState.KICKING_CHALLENGE:
+            kickingMode.update();
+            kickingMode.draw(ctx);
+            break;
+        case GameState.GAME_OVER:
+            drawGameOver();
+            break;
+    }
+
+    if (currentState === GameState.MATCH || currentState === GameState.RUCK || currentState === GameState.KICKING_CHALLENGE) {
+        ctx.restore();
+    }
+
+    requestAnimationFrame(gameLoop);
+}
+
+// Lancer le Jeu
+gameLoop();
+
 </script>
 </body>
 </html>
